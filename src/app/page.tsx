@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
@@ -33,6 +33,35 @@ export default function Home() {
   // SCENE 3
   const s3TopLayer = useRef<HTMLDivElement>(null);
   const s3Section = useRef<HTMLDivElement>(null);
+  const s3Revealed = useRef(false);
+  const [s3CursorNone, setS3CursorNone] = useState(false);
+
+  const handleS3Click = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (s3TopLayer.current && s3Section.current) {
+      const isFirstTime = !s3Revealed.current;
+
+      if (isFirstTime) {
+        s3Revealed.current = true;
+        setS3CursorNone(true);
+      }
+
+      const rect = s3Section.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      s3TopLayer.current.style.setProperty("--x", `${x}px`);
+      s3TopLayer.current.style.setProperty("--y", `${y}px`);
+
+      gsap.fromTo(
+        s3TopLayer.current,
+        { "--radius": isFirstTime ? "0px" : "150px" },
+        {
+          "--radius": "250px",
+          ease: "elastic.out(1, 0.5)",
+          duration: 1.5,
+        },
+      );
+    }
+  };
 
   // SCENE 4
   const s4Container = useRef<HTMLDivElement>(null);
@@ -57,15 +86,38 @@ export default function Home() {
     const setX = gsap.quickSetter(s3TopLayer.current, "--x", "px");
     const setY = gsap.quickSetter(s3TopLayer.current, "--y", "px");
 
+    // Also track mouse for the hint element sync
+    const setHintX = gsap.quickSetter(".s3-hint", "left", "px");
+    const setHintY = gsap.quickSetter(".s3-hint", "top", "px");
+
     const updateMouse = (e: MouseEvent) => {
       const rect = s3Section.current!.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       setX(x);
       setY(y);
+      setHintX(x);
+      setHintY(y);
     };
     window.addEventListener("mousemove", updateMouse);
     return () => window.removeEventListener("mousemove", updateMouse);
+  }, []);
+
+  useEffect(() => {
+    // Refresh ScrollTrigger to fix initial load layout shifts
+    // caused by custom fonts or images loading asynchronously.
+    const refresh = () => ScrollTrigger.refresh();
+
+    if (document.fonts) {
+      document.fonts.ready.then(refresh);
+    }
+    if (document.readyState === "complete") {
+      refresh();
+    } else {
+      window.addEventListener("load", refresh);
+    }
+
+    return () => window.removeEventListener("load", refresh);
   }, []);
 
   useGSAP(
@@ -249,13 +301,45 @@ export default function Home() {
         },
       });
 
-      // Tie horizontal scroll to the master pin timeline
-      scene4Tl.to(s4Wrapper.current, {
-        x: -scrollEnd,
-        ease: "none",
-        duration: 0.75,
-      });
-      scene4Tl.to({}, { duration: 0.25 });
+      const circleLength = 283;
+      const fillAmount = 0; // 0 artinya 100% penuh
+
+      // Phase 1: Count to 100% and fill circle
+      const s4Proxy = { val: 0 };
+      scene4Tl
+        .to(
+          s4CircleFill.current,
+          { strokeDashoffset: fillAmount, ease: "none", duration: 0.3 },
+          0,
+        )
+        .to(
+          s4Proxy,
+          {
+            val: 100,
+            ease: "none",
+            duration: 0.3,
+            onUpdate: () => {
+              if (s4Text60.current) {
+                s4Text60.current.innerText = Math.round(s4Proxy.val) + "%";
+              }
+            },
+          },
+          0,
+        )
+        .to("#jaggedS4", { attr: { baseFrequency: "0.1" }, duration: 0.3 }, 0)
+
+        // Pause gently at 100% before starting the slide
+        .to({}, { duration: 0.1 })
+
+        // Phase 2: Tie horizontal scroll to the master pin timeline after content 1 is done
+        .to(s4Wrapper.current, {
+          x: -scrollEnd,
+          ease: "power1.inOut",
+          duration: 0.6, // scroll durasi
+        })
+
+        // Phase 3: Hold at the end
+        .to({}, { duration: 0.2 });
 
       // Background morph: dimulai segera setelah Scene 4 masuk dari bawah layar
       // Selesai dengan mulus sebelum mencapai puncak
@@ -274,47 +358,21 @@ export default function Home() {
         0,
       );
 
-      // 60% glitch fill animation: runs during the first half of the pin
-      const circleLength = 283;
-      const fillAmount = circleLength * 0.4;
-      const tl4Fill = gsap.timeline({
-        scrollTrigger: {
-          trigger: s4Container.current,
-          start: "top top",
-          end: () => `+=${pinDistance / 2 || 500}`,
-          scrub: 1.5,
-        },
-      });
-      tl4Fill
-        .to(
-          s4CircleFill.current,
-          { strokeDashoffset: fillAmount, ease: "none" },
-          0,
-        )
-        .to(s4Text60.current, { text: "60%", ease: "none" }, 0)
-        .to("#jaggedS4", { attr: { baseFrequency: "0.1" }, duration: 1 }, 0);
-
       // === SCENE 5 ===
       const tl5 = gsap.timeline({
         scrollTrigger: {
           trigger: s5CupGroup.current,
-          start: "top 60%",
-          end: "bottom 40%",
+          start: "top 20%",
+          end: "bottom top",
           scrub: 1,
         },
       });
 
-      // Cup deforms/cracks and liquid pours out
+      // Cup starts whole (strokeDashoffset 0)
+      gsap.set(s5CupStroke.current, { strokeDashoffset: 0 });
+
+      // Cup deforms/cracks and liquid pours out as it exits
       tl5
-        .to(
-          s5CupStroke.current,
-          {
-            strokeDashoffset: 0,
-            ease: "power1.inOut",
-            duration: 1,
-          },
-          0,
-        )
         .to(
           s5Liquid.current,
           {
@@ -324,7 +382,7 @@ export default function Home() {
             duration: 1.5,
             ease: "power2.in",
           },
-          0.5,
+          0,
         )
         .to(
           s5CupStroke.current,
@@ -333,10 +391,11 @@ export default function Home() {
             scaleY: 0.8,
             rotation: 5,
             y: 10,
+            strokeDashoffset: 40, // Partial break effect
             ease: "elastic.out(1, 0.3)",
             duration: 1,
           },
-          1,
+          0.5,
         );
 
       // Refresh ScrollTrigger after all animations are registered
@@ -491,7 +550,7 @@ export default function Home() {
             </div>
             <p
               ref={s1Subtitle}
-              className="font-serif italic text-whi text-2xl md:text-4xl mt-4"
+              className="font-serif italic text-[#9b2226] text-2xl md:text-4xl mt-4"
             >
               The Burden of Empathy
             </p>
@@ -569,26 +628,75 @@ export default function Home() {
         </div>
         <div className="w-full md:w-1/2 min-h-screen py-32 px-8 md:px-20 flex flex-col justify-center gap-8 mt-[100vh] md:mt-0">
           <div className="h-[10vh] md:h-[20vh]"></div>
-          <h2
-            ref={s2Text1}
-            className="font-serif text-5xl md:text-7xl text-crimson leading-tight min-h-[3em] mb-4"
-          ></h2>
-          <p
-            ref={s2Text2}
-            className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl min-h-[5em]"
-          ></p>
-          <p
-            ref={s2Text3}
-            className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl min-h-[5em]"
-          ></p>
-          <p
-            ref={s2Text4}
-            className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl min-h-[5em]"
-          ></p>
-          <p
-            ref={s2Text5}
-            className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl min-h-[5em]"
-          ></p>
+
+          <div className="relative mb-4">
+            <h2 className="font-serif text-5xl md:text-7xl text-crimson leading-tight invisible selection:bg-transparent">
+              Semester 10. Dropout Imminent.
+            </h2>
+            <h2
+              ref={s2Text1}
+              className="font-serif text-5xl md:text-7xl text-crimson leading-tight absolute top-0 left-0 w-full h-full"
+            ></h2>
+          </div>
+
+          <div className="relative mb-8">
+            <p className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl invisible selection:bg-transparent">
+              Layar laptop berkedip menampakkan draf skripsi yang tak tersentuh
+              selama berbulan-bulan. Di luar jendela, riuh rendah mahasiswa
+              berlalu-lalang menapaki jalanan kampus yang familiar—sebuah
+              pemandangan kontras dengan ruang batinmu yang terasa makin hampa
+              dan buntu. Ekspektasi keluarga perlahan berubah menjadi beban yang
+              mencekik leher.
+            </p>
+            <p
+              ref={s2Text2}
+              className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl absolute top-0 left-0 w-full h-full"
+            ></p>
+          </div>
+
+          <div className="relative mb-8">
+            <p className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl invisible selection:bg-transparent">
+              Surat Peringatan itu akhirnya datang membawa ketakutan terburuk:
+              ancaman Drop Out sudah di depan mata. Namun, Dosen Pembimbingmu
+              memberikan satu kesempatan terakhir. Sebuah jalan keluar sekaligus
+              penebusan akademis yang tak biasa: 30 Hari untuk melakukan Riset
+              Aksi secara langsung.
+            </p>
+            <p
+              ref={s2Text3}
+              className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl absolute top-0 left-0 w-full h-full"
+            ></p>
+          </div>
+
+          <div className="relative mb-8">
+            <p className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl invisible selection:bg-transparent">
+              Tugasmu bukan lagi berkutat dengan teori mati di sudut
+              perpustakaan. Kamu dituntut untuk turun langsung, mengobservasi,
+              dan menyusup ke dalam labirin krisis mental teman-temanmu. Sebuah
+              perjalanan psikologis yang akan membawamu melintasi 5 fakultas
+              yang berbeda—menyelami tekanan presisi yang gila di fakultas
+              teknik, hingga beratnya beban moral di ranah medis.
+            </p>
+            <p
+              ref={s2Text4}
+              className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl absolute top-0 left-0 w-full h-full"
+            ></p>
+          </div>
+
+          <div className="relative mb-8">
+            <p className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl invisible selection:bg-transparent">
+              Mereka tertawa di lorong kampus, namun hancur tak bersuara di
+              balik pintu kamar kos. Tugasmu adalah menemukan anomali tersebut
+              dan memahami penderitaan mereka tanpa perlu diucapkan. Sembuhkan
+              mereka... sebelum empati itu sendiri yang berbalik menelan
+              kewarasanmu.
+            </p>
+            <p
+              ref={s2Text5}
+              className="font-sans text-xl md:text-2xl text-abyss/80 leading-relaxed max-w-xl absolute top-0 left-0 w-full h-full"
+            ></p>
+          </div>
+
           <div className="h-[15vh]"></div>
         </div>
       </section>
@@ -596,20 +704,17 @@ export default function Home() {
       {/* SCENE 3 - X-RAY REVEAL */}
       <section
         ref={s3Section}
-        className="relative h-screen w-full overflow-hidden cursor-none bg-white"
+        onClick={handleS3Click}
+        className={`relative h-screen w-full overflow-hidden bg-white transition-colors cursor-pointer ${s3CursorNone ? "cursor-none" : ""}`}
       >
         {/* BASE LAYER (Normal World - Storybook) */}
         <div className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="absolute inset-0 opacity-30 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-sage via-white to-white"></div>
-          <div className="absolute inset-0 pointer-events-none opacity-50 mix-blend-multiply blur-[60px]">
-            <svg
-              viewBox="0 0 100 100"
-              className="w-full h-full"
-              preserveAspectRatio="none"
-            >
-              <ellipse cx="20" cy="80" rx="30" ry="20" fill="#84A59D" />
-              <ellipse cx="80" cy="20" rx="40" ry="30" fill="#FDFBF7" />
-            </svg>
+          <div className="absolute inset-0 z-0">
+            <img
+              src="/normal.png"
+              alt="Normal Background"
+              className="w-full h-full object-cover object-center"
+            />
           </div>
           <div className="z-10 flex flex-col items-center max-w-4xl px-4 text-center pointer-events-none">
             <h2 className="font-serif text-5xl md:text-7xl text-abyss mb-6">
@@ -624,43 +729,18 @@ export default function Home() {
         {/* TOP LAYER (Alterworld) */}
         <div
           ref={s3TopLayer}
-          className="absolute inset-0 bg-abyss flex items-center justify-center pointer-events-none z-20"
+          className="absolute inset-0 flex items-center justify-center pointer-events-none z-20"
           style={{
-            clipPath: "circle(250px at var(--x, -1000px) var(--y, -1000px))",
+            clipPath:
+              "circle(var(--radius, 0px) at var(--x, -1000px) var(--y, -1000px))",
           }}
         >
-          <div className="absolute inset-0 opacity-40">
-            <svg width="100%" height="100%">
-              <pattern
-                id="pattern-dark"
-                x="0"
-                y="0"
-                width="80"
-                height="80"
-                patternUnits="userSpaceOnUse"
-              >
-                <path
-                  d="M0,0 L80,80 M80,0 L0,80 M40,0 L40,80 M0,40 L80,40"
-                  fill="none"
-                  stroke="#9B2226"
-                  strokeWidth="2"
-                  strokeDasharray="5,5"
-                />
-                <polygon
-                  points="40,20 60,60 20,60"
-                  fill="none"
-                  stroke="#FDFBF7"
-                  opacity="0.3"
-                />
-              </pattern>
-              <rect
-                x="0"
-                y="0"
-                width="100%"
-                height="100%"
-                fill="url(#pattern-dark)"
-              />
-            </svg>
+          <div className="absolute inset-0 z-0">
+            <img
+              src="/distrosi.png"
+              alt="Distorsi Background"
+              className="w-full h-full object-cover object-center"
+            />
           </div>
           <div className="z-10 flex flex-col items-center max-w-4xl px-4 text-center pointer-events-none">
             <h2
@@ -675,6 +755,18 @@ export default function Home() {
             </p>
           </div>
         </div>
+
+        {/* CLICK HINT FOR SCENE 3 */}
+        {!s3CursorNone && (
+          <div
+            className="s3-hint pointer-events-none z-50 mix-blend-difference font-mono text-[10px] uppercase tracking-[0.2em] text-white absolute"
+            style={{
+              transform: "translate(20px, 20px)",
+            }}
+          >
+            [ Click to reveal ]
+          </div>
+        )}
       </section>
 
       {/* SCENE 4 */}
@@ -798,7 +890,7 @@ export default function Home() {
       </section>
 
       {/* SCENE 6 */}
-      <section className="relative h-[80vh] w-full bg-abyss flex items-center justify-center overflow-hidden">
+      <section className="relative h-screen w-full bg-abyss flex items-center justify-center overflow-hidden">
         <div className="text-center z-10">
           <p className="font-serif text-3xl md:text-5xl text-canvas/40 mix-blend-screen leading-relaxed">
             Empati adalah beban yang sunyi. <br />
