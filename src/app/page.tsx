@@ -3,10 +3,9 @@
 import { useRef, useEffect } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { TextPlugin } from "gsap/TextPlugin";
 import { useGSAP } from "@gsap/react";
 
-gsap.registerPlugin(ScrollTrigger, TextPlugin);
+// Plugin registration is centralized in SmoothScroller.tsx
 
 export default function Home() {
   const container = useRef<HTMLDivElement>(null);
@@ -201,46 +200,57 @@ export default function Home() {
       const s4Width = s4Wrapper.current?.scrollWidth || 0;
       const scrollEnd = Math.max(s4Width - window.innerWidth, 0);
 
-      // Background morph
-      gsap.fromTo(
+      // Master Pin Timeline for Scene 4
+      // Handles pinning and the main horizontal scroll
+      const pinDistance = scrollEnd * 1.5; // Memperpanjang jarak pin agar scroll horizontal lebih rileks dan smooth
+      const scene4Tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: s4Container.current,
+          start: "top top",
+          end: () => `+=${pinDistance}`,
+          scrub: 1.5, // Menambah sedikit kelembutan pada gerakan mengikuti scroll
+          pin: true,
+          pinSpacing: true,
+          invalidateOnRefresh: true,
+          anticipatePin: 1,
+        },
+      });
+
+      // Tie horizontal scroll to the master pin timeline
+      scene4Tl.to(s4Wrapper.current, {
+        x: -scrollEnd,
+        ease: "sine.inOut", // Animasi horizontal dimulai dan diakhiri dengan lebih mulus
+      });
+
+      // Background morph: dimulai segera setelah Scene 4 masuk dari bawah layar
+      // Selesai dengan mulus sebelum mencapai puncak
+      const tl4Bg = gsap.timeline({
+        scrollTrigger: {
+          trigger: s4Container.current,
+          start: "top bottom",
+          end: "top 20%",
+          scrub: 1.5,
+        },
+      });
+      tl4Bg.fromTo(
         s4Container.current,
         { backgroundColor: "#FDFBF7", color: "#121820" },
-        {
-          backgroundColor: "#121820",
-          color: "#FDFBF7",
-          scrollTrigger: {
-            trigger: s4Container.current,
-            start: "top center",
-            end: "top top",
-            scrub: true,
-          },
-        },
+        { backgroundColor: "#121820", color: "#FDFBF7", ease: "power2.inOut" },
+        0,
       );
 
-      gsap.to(s4Wrapper.current, {
-        x: -scrollEnd,
-        ease: "none",
-        scrollTrigger: {
-          trigger: s4Container.current,
-          start: "top top",
-          end: () => `+=${scrollEnd}`,
-          scrub: 1,
-          pin: true,
-        },
-      });
-
-      // 60% glitch fill animation
+      // 60% glitch fill animation: runs during the first half of the pin
       const circleLength = 283;
-      const fillAmount = circleLength * 0.4; // 283 - (283 * 0.6) = 113 offset
-      const tl4 = gsap.timeline({
+      const fillAmount = circleLength * 0.4;
+      const tl4Fill = gsap.timeline({
         scrollTrigger: {
           trigger: s4Container.current,
           start: "top top",
-          end: () => `+=${scrollEnd / 2 || 500}`,
-          scrub: true,
+          end: () => `+=${pinDistance / 2 || 500}`,
+          scrub: 1.5,
         },
       });
-      tl4
+      tl4Fill
         .to(
           s4CircleFill.current,
           { strokeDashoffset: fillAmount, ease: "none" },
@@ -293,6 +303,10 @@ export default function Home() {
           },
           1,
         );
+
+      // Refresh ScrollTrigger after all animations are registered
+      // This ensures proper sync with Lenis smooth scroll positions
+      ScrollTrigger.refresh();
     },
     { scope: container },
   );

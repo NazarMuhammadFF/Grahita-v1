@@ -5,11 +5,15 @@ import SmoothScroller from "@/components/SmoothScroller";
 import CustomCursor from "@/components/CustomCursor";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" });
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-playfair",
+});
 
 export const metadata: Metadata = {
   title: "Grahita: The Burden of Empathy",
-  description: "A cozy, surreal storybook built from living geometric and organic shapes.",
+  description:
+    "A cozy, surreal storybook built from living geometric and organic shapes.",
 };
 
 export default function RootLayout({
