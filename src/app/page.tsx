@@ -23,7 +23,7 @@ export default function Home() {
   // SCENE 2
   const s2Container = useRef<HTMLDivElement>(null);
   const s2Left = useRef<HTMLDivElement>(null);
-  const s2Shapes = useRef<SVGGElement>(null);
+  const s2Shapes = useRef<HTMLDivElement>(null);
   const s2Text1 = useRef<HTMLHeadingElement>(null);
   const s2Text2 = useRef<HTMLParagraphElement>(null);
   const s2Text3 = useRef<HTMLParagraphElement>(null);
