@@ -196,13 +196,46 @@ export default function Home() {
         });
       });
 
+      // === TRANSITION SCENE 2 -> SCENE 3 ===
+      gsap.fromTo(
+        s2Container.current,
+        { opacity: 1 },
+        {
+          opacity: 0,
+          ease: "none",
+          scrollTrigger: {
+            trigger: s3Section.current,
+            start: "top bottom",
+            end: "top center",
+            scrub: 1,
+          },
+        },
+      );
+
+      gsap.fromTo(
+        s3Section.current,
+        { opacity: 0 },
+        {
+          opacity: 1,
+          ease: "none",
+          scrollTrigger: {
+            trigger: s3Section.current,
+            start: "top bottom",
+            end: "top center",
+            scrub: 1,
+          },
+        },
+      );
+
       // === SCENE 4 ===
       const s4Width = s4Wrapper.current?.scrollWidth || 0;
       const scrollEnd = Math.max(s4Width - window.innerWidth, 0);
+      const s4Panels = s4Wrapper.current?.children.length || 1;
+      const extraReadDistance = window.innerHeight * Math.max(s4Panels - 1, 1);
 
       // Master Pin Timeline for Scene 4
       // Handles pinning and the main horizontal scroll
-      const pinDistance = scrollEnd * 1.5; // Memperpanjang jarak pin agar scroll horizontal lebih rileks dan smooth
+      const pinDistance = scrollEnd + extraReadDistance;
       const scene4Tl = gsap.timeline({
         scrollTrigger: {
           trigger: s4Container.current,
@@ -219,8 +252,10 @@ export default function Home() {
       // Tie horizontal scroll to the master pin timeline
       scene4Tl.to(s4Wrapper.current, {
         x: -scrollEnd,
-        ease: "sine.inOut", // Animasi horizontal dimulai dan diakhiri dengan lebih mulus
+        ease: "none",
+        duration: 0.75,
       });
+      scene4Tl.to({}, { duration: 0.25 });
 
       // Background morph: dimulai segera setelah Scene 4 masuk dari bawah layar
       // Selesai dengan mulus sebelum mencapai puncak
