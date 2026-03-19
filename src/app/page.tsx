@@ -95,7 +95,7 @@ export default function Home() {
   const s5Container = useRef<HTMLElement>(null);
   const s5CupStroke = useRef<SVGPathElement>(null);
   const s5CupGroup = useRef<SVGGElement>(null);
-  const s5Liquid = useRef<SVGPathElement>(null);
+  const s5Liquid = useRef<SVGRectElement>(null);
   const s5Text1 = useRef<HTMLDivElement>(null);
   const s5Text2 = useRef<HTMLParagraphElement>(null);
   const s5Text3 = useRef<HTMLParagraphElement>(null);
