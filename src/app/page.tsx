@@ -3,9 +3,14 @@
 import { useRef, useEffect, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { TextPlugin } from "gsap/TextPlugin";
 import { useGSAP } from "@gsap/react";
+import { useRouter } from "next/navigation";
 
 // Plugin registration is centralized in SmoothScroller.tsx
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(TextPlugin);
+}
 
 export default function Home() {
   const container = useRef<HTMLDivElement>(null);
@@ -34,7 +39,17 @@ export default function Home() {
   const s3TopLayer = useRef<HTMLDivElement>(null);
   const s3Section = useRef<HTMLDivElement>(null);
   const s3Revealed = useRef(false);
+  const isInDarkZone = useRef(false);
   const [s3CursorNone, setS3CursorNone] = useState(false);
+
+  // Helper to switch music track
+  const dispatchMusicSwitch = (track: string) => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("switchMusic", { detail: { track } }),
+      );
+    }
+  };
 
   const handleS3Click = (e: React.MouseEvent<HTMLDivElement>) => {
     if (s3TopLayer.current && s3Section.current) {
@@ -43,6 +58,10 @@ export default function Home() {
       if (isFirstTime) {
         s3Revealed.current = true;
         setS3CursorNone(true);
+        // On first click, if we're in the dark zone, switch to backsound2.mp3
+        if (isInDarkZone.current) {
+          dispatchMusicSwitch("/backsound2.mp3");
+        }
       }
 
       const rect = s3Section.current.getBoundingClientRect();
@@ -68,16 +87,79 @@ export default function Home() {
   const s4Wrapper = useRef<HTMLDivElement>(null);
   const s4CircleFill = useRef<SVGCircleElement>(null);
   const s4Text60 = useRef<HTMLSpanElement>(null);
+  const s4Panel2Title = useRef<HTMLHeadingElement>(null);
+  const s4Panel2Line = useRef<HTMLDivElement>(null);
+  const s4Panel2Text = useRef<HTMLParagraphElement>(null);
 
   // SCENE 5
+  const s5Container = useRef<HTMLElement>(null);
   const s5CupStroke = useRef<SVGPathElement>(null);
   const s5CupGroup = useRef<SVGGElement>(null);
   const s5Liquid = useRef<SVGPathElement>(null);
+  const s5Text1 = useRef<HTMLDivElement>(null);
+  const s5Text2 = useRef<HTMLParagraphElement>(null);
+  const s5Text3 = useRef<HTMLParagraphElement>(null);
 
   // SCENE 6
   const s6Glyph = useRef<SVGGElement>(null);
   const s6Links = useRef<HTMLDivElement>(null);
   const s6Pulse = useRef<HTMLDivElement>(null);
+  const s6MainText = useRef<HTMLParagraphElement>(null);
+  const s6Section = useRef<HTMLElement>(null);
+  const s6Link1 = useRef<HTMLButtonElement>(null);
+  const s6Link2 = useRef<HTMLButtonElement>(null);
+  const s6Arrow = useRef<HTMLDivElement>(null);
+  const s6Trigger = useRef<HTMLDivElement>(null);
+
+  const [isDecrypted, setIsDecrypted] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [s6Hovered, setS6Hovered] = useState(false);
+  const router = useRouter();
+
+  const handleS1MouseMove = (e: React.MouseEvent) => {
+    if (!s1Title.current) return;
+    const rect = s1Title.current.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+
+    // Check if mouse is inside the title bounds
+    const isInside =
+      x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+
+    if (isInside) {
+      // Calculate distance relative to center for intensity
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const dist = Math.sqrt(
+        Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2),
+      );
+      const intensity = Math.max(0.015, 0.08 - dist / 1200);
+
+      gsap.to("#turbS1", {
+        attr: { baseFrequency: `${intensity * 0.5} ${intensity}` },
+        duration: 0.8,
+        ease: "sine.out",
+      });
+
+      gsap.to(s1Title.current, {
+        opacity: 0.5,
+        duration: 0.4,
+        ease: "power2.out",
+      });
+    } else {
+      gsap.to("#turbS1", {
+        attr: { baseFrequency: "0.001 0.001" },
+        duration: 1.2,
+        ease: "sine.inOut",
+      });
+
+      gsap.to(s1Title.current, {
+        opacity: 1,
+        duration: 0.6,
+        ease: "power2.inOut",
+      });
+    }
+  };
 
   useEffect(() => {
     if (!s3TopLayer.current || !s3Section.current) return;
@@ -180,17 +262,6 @@ export default function Home() {
         },
       });
 
-      // Wobble filter effect tied to ScrollTrigger
-      gsap.to("#turbS1", {
-        attr: { baseFrequency: "0.08 0.08" },
-        scrollTrigger: {
-          trigger: container.current,
-          start: "top top",
-          end: "+=800",
-          scrub: true,
-        },
-      });
-
       // === SCENE 2 ===
       // Shapes collapse chaotically on scroll
       if (s2Shapes.current && s2Container.current) {
@@ -248,6 +319,22 @@ export default function Home() {
         });
       });
 
+      // Track boundaries to orchestrate music changes
+      ScrollTrigger.create({
+        trigger: s3Section.current,
+        start: "top 50%", // When user is starting to see scene 3
+        onEnter: () => {
+          isInDarkZone.current = true;
+          if (s3Revealed.current) {
+            dispatchMusicSwitch("/backsound2.mp3");
+          }
+        },
+        onLeaveBack: () => {
+          isInDarkZone.current = false;
+          dispatchMusicSwitch("/backsound.mp3");
+        },
+      });
+
       // === TRANSITION SCENE 2 -> SCENE 3 ===
       gsap.fromTo(
         s2Container.current,
@@ -302,22 +389,24 @@ export default function Home() {
       });
 
       const circleLength = 283;
-      const fillAmount = 0; // 0 artinya 100% penuh
 
       // Phase 1: Count to 100% and fill circle
       const s4Proxy = { val: 0 };
+      const targetVal = 100;
+      const fillAmount = circleLength * (1 - targetVal / 100);
+
       scene4Tl
         .to(
           s4CircleFill.current,
-          { strokeDashoffset: fillAmount, ease: "none", duration: 0.3 },
+          { strokeDashoffset: fillAmount, ease: "power2.out", duration: 0.4 },
           0,
         )
         .to(
           s4Proxy,
           {
-            val: 100,
-            ease: "none",
-            duration: 0.3,
+            val: targetVal,
+            ease: "power2.out",
+            duration: 0.4,
             onUpdate: () => {
               if (s4Text60.current) {
                 s4Text60.current.innerText = Math.round(s4Proxy.val) + "%";
@@ -326,8 +415,6 @@ export default function Home() {
           },
           0,
         )
-        .to("#jaggedS4", { attr: { baseFrequency: "0.1" }, duration: 0.3 }, 0)
-
         // Pause gently at 100% before starting the slide
         .to({}, { duration: 0.1 })
 
@@ -335,8 +422,22 @@ export default function Home() {
         .to(s4Wrapper.current, {
           x: -scrollEnd,
           ease: "power1.inOut",
-          duration: 0.6, // scroll durasi
+          duration: 0.7, // scroll durasi
         })
+
+        // Panel 2 Entrance Animations (starts near the end of the slide)
+        .fromTo(
+          s4Panel2Line.current,
+          { scaleX: 0 },
+          { scaleX: 1, duration: 0.2, ease: "power2.out" },
+          "-=0.3",
+        )
+        .fromTo(
+          [s4Panel2Title.current, s4Panel2Text.current],
+          { y: 30, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.3, stagger: 0.1, ease: "power2.out" },
+          "-=0.2",
+        )
 
         // Phase 3: Hold at the end
         .to({}, { duration: 0.2 });
@@ -359,43 +460,59 @@ export default function Home() {
       );
 
       // === SCENE 5 ===
-      const tl5 = gsap.timeline({
+      const s5Timeline = gsap.timeline({
         scrollTrigger: {
-          trigger: s5CupGroup.current,
-          start: "top 20%",
-          end: "bottom top",
+          trigger: s5Container.current,
+          start: "top top",
+          end: "+=200%",
           scrub: 1,
+          pin: true,
         },
       });
 
-      // Cup starts whole (strokeDashoffset 0)
-      gsap.set(s5CupStroke.current, { strokeDashoffset: 0 });
+      // Reset the cup initially
+      gsap.set(s5CupStroke.current, { rotation: 0, x: 0, stroke: "#121820" });
 
-      // Cup deforms/cracks and liquid pours out as it exits
-      tl5
+      s5Timeline
+        // The Draining Process
         .to(
           s5Liquid.current,
           {
-            y: 150,
-            opacity: 0,
-            scaleY: 2,
+            scaleY: 0,
             duration: 1.5,
-            ease: "power2.in",
+            ease: "power1.inOut",
           },
           0,
         )
+        // The Breaking Point
         .to(
           s5CupStroke.current,
           {
-            scaleX: 1.2,
-            scaleY: 0.8,
-            rotation: 5,
-            y: 10,
-            strokeDashoffset: 40, // Partial break effect
-            ease: "elastic.out(1, 0.3)",
-            duration: 1,
+            rotation: 12,
+            x: 5,
+            stroke: "#9B2226", // Crimson
+            duration: 0.5,
+            ease: "back.out(1.7)",
           },
-          0.5,
+          1.5, // Triggered exactly right when liquid hits 0
+        )
+        // Staggered text reveal with blur
+        .fromTo(
+          [s5Text1.current, s5Text2.current, s5Text3.current],
+          {
+            opacity: 0,
+            y: 30,
+            filter: "blur(10px)",
+          },
+          {
+            opacity: 1,
+            y: 0,
+            filter: "blur(0px)",
+            stagger: 0.3,
+            duration: 1.2,
+            ease: "power2.out",
+          },
+          0.5, // start halfway through the pour
         );
 
       // Refresh ScrollTrigger after all animations are registered
@@ -405,75 +522,141 @@ export default function Home() {
     { scope: container },
   );
 
-  // SCENE 6 - GLYPH HOVER
-  const handleGlyphHover = () => {
-    if (!s6Glyph.current || !s6Links.current || !s6Pulse.current) return;
-    const bits = Array.from(s6Glyph.current.children);
+  // SCENE 6 - GLITCH ROUTER MECHANIC
+  const handleDecryptClick = () => {
+    if (isDecrypted) return;
+    setIsDecrypted(true);
+  };
 
-    // Disintegration
-    gsap.to(bits, {
-      x: () => (Math.random() - 0.5) * 100,
-      y: () => (Math.random() - 0.5) * 100,
-      rotation: () => (Math.random() - 0.5) * 360,
-      scale: 0,
-      opacity: 0,
-      duration: 0.8,
-      stagger: 0.02,
-      ease: "power3.out",
-      overwrite: "auto",
-    });
+  useEffect(() => {
+    if (isDecrypted) {
+      // Expand the terminal box
+      if (s6Links.current) {
+        gsap.fromTo(
+          s6Links.current,
+          { scale: 0.8, opacity: 0 },
+          { scale: 1, opacity: 1, duration: 0.6, ease: "back.out(1.5)" },
+        );
+      }
 
-    // Reveal links
-    gsap.to(s6Links.current, {
-      opacity: 1,
-      y: -20,
-      pointerEvents: "auto",
-      duration: 0.6,
-      delay: 0.3,
-      ease: "back.out(1.5)",
-      overwrite: "auto",
-    });
+      if (s6Pulse.current) {
+        gsap.to(s6Pulse.current, {
+          opacity: 1,
+          scale: 1.5,
+          duration: 2,
+          repeat: -1,
+          yoyo: true,
+          ease: "sine.inOut",
+        });
+      }
 
-    // Pulse bg
-    gsap.to(s6Pulse.current, {
-      opacity: 1,
-      scale: 1,
-      duration: 1,
-      ease: "sine.out",
-      overwrite: "auto",
+      // Typewriter effect on links
+      if (s6Link1.current && s6Link2.current) {
+        gsap.to(s6Link1.current, {
+          text: "[ DECRYPT: THE_BLUEPRINT.exe ]",
+          duration: 1.5,
+          delay: 0.3,
+          ease: "none",
+        });
+        gsap.to(s6Link2.current, {
+          text: "[ ACCESS: THE_PITCH.sys ]",
+          duration: 1.5,
+          delay: 1.8,
+          ease: "none",
+        });
+      }
+    }
+  }, [isDecrypted]);
+
+  const handleS6MouseMove = (e: React.MouseEvent) => {
+    if (!s6Arrow.current || !s6Trigger.current || isDecrypted) return;
+
+    const triggerBox = s6Trigger.current.getBoundingClientRect();
+    const targetX = triggerBox.left + triggerBox.width / 2;
+    const targetY = triggerBox.top + triggerBox.height / 2;
+
+    const mouseX = e.clientX;
+    const mouseY = e.clientY;
+
+    const angle =
+      Math.atan2(targetY - mouseY, targetX - mouseX) * (180 / Math.PI);
+
+    const sectionRect = s6Section.current!.getBoundingClientRect();
+    const relX = mouseX - sectionRect.left;
+    const relY = mouseY - sectionRect.top;
+
+    gsap.to(s6Arrow.current, {
+      x: relX + 20,
+      y: relY + 20,
+      rotation: angle,
+      duration: 0.1,
+      ease: "none",
     });
   };
 
-  const handleGlyphLeave = () => {
-    if (!s6Glyph.current || !s6Links.current || !s6Pulse.current) return;
-    const bits = Array.from(s6Glyph.current.children);
+  const handleNavigation = (
+    e: React.MouseEvent<HTMLButtonElement>,
+    url: string,
+  ) => {
+    e.preventDefault();
+    if (isNavigating) return;
+    setIsNavigating(true);
 
-    gsap.to(bits, {
-      x: 0,
-      y: 0,
-      rotation: 0,
-      scale: 1,
-      opacity: 1,
-      duration: 0.5,
-      stagger: 0.01,
-      ease: "power2.out",
-      overwrite: "auto",
-    });
+    const tl = gsap.timeline();
 
-    gsap.to(s6Links.current, {
-      opacity: 0,
-      y: 0,
-      pointerEvents: "none",
-      duration: 0.3,
-      overwrite: "auto",
-    });
+    // Glitch the main text
+    if (s6MainText.current) {
+      tl.to(s6MainText.current, {
+        x: () => (Math.random() - 0.5) * 50,
+        y: () => (Math.random() - 0.5) * 50,
+        skewX: 20,
+        opacity: 0.5,
+        duration: 0.1,
+        repeat: 5,
+        yoyo: true,
+      }).to(
+        s6MainText.current,
+        {
+          scale: 0,
+          opacity: 0,
+          duration: 0.4,
+          ease: "power2.in",
+        },
+        "+=0.1",
+      );
+    }
 
-    gsap.to(s6Pulse.current, {
-      opacity: 0,
-      scale: 0.5,
-      duration: 0.5,
-      overwrite: "auto",
-    });
+    // Massive timeline on entire 100vh container
+    if (s6Section.current) {
+      tl.to(
+        s6Section.current,
+        {
+          filter: "invert(1) contrast(200%) hue-rotate(90deg)",
+          duration: 0.2,
+        },
+        0,
+      )
+        .to(
+          s6Section.current,
+          {
+            scaleY: 0.01,
+            duration: 0.3,
+            ease: "power4.in",
+          },
+          "+=0.2",
+        )
+        .to(s6Section.current, {
+          scaleX: 0,
+          opacity: 0,
+          backgroundColor: "#000",
+          duration: 0.2,
+          ease: "power2.inOut",
+        });
+    }
+
+    setTimeout(() => {
+      router.push(url);
+    }, 1200);
   };
 
   return (
@@ -510,7 +693,9 @@ export default function Home() {
       {/* SCENE 1 */}
       <section
         ref={s1Section}
-        className="relative h-screen w-full flex flex-col items-center justify-center overflow-visible bg-white"
+        className="relative h-screen w-full flex flex-col items-center justify-center overflow-visible"
+        style={{ backgroundColor: "#fdf3eb" }}
+        onMouseMove={handleS1MouseMove}
       >
         <div
           ref={s1Inner}
@@ -561,11 +746,13 @@ export default function Home() {
       {/* SCENE 2 */}
       <section
         ref={s2Container}
-        className="relative w-full bg-white flex flex-col md:flex-row pb-32"
+        className="relative w-full flex flex-col md:flex-row pb-32"
+        style={{ backgroundColor: "#fdf3eb" }}
       >
         <div
           ref={s2Left}
-          className="md:sticky md:top-0 z-10 w-full md:w-1/2 h-screen flex border-r border-abyss/10 items-center justify-center overflow-hidden bg-white flex-shrink-0"
+          className="md:sticky md:top-0 z-10 w-full md:w-1/2 h-screen flex border-r border-abyss/10 items-center justify-center overflow-hidden flex-shrink-0"
+          style={{ backgroundColor: "#fdf3eb" }}
         >
           {/* Background Image for Meja */}
           <div className="absolute inset-0 z-0">
@@ -779,20 +966,22 @@ export default function Home() {
           className="w-[200vw] h-full flex flex-row items-center"
         >
           <div className="w-[100vw] h-full flex items-center justify-center relative flex-shrink-0 px-8">
-            <div className="flex flex-col md:flex-row items-center gap-16 max-w-6xl mx-auto w-full">
-              <div className="relative w-64 h-64 md:w-96 md:h-96 flex-shrink-0">
+            {/* Ambient radial glow */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[radial-gradient(circle,_var(--tw-gradient-stops))] from-[#9B2226]/10 to-transparent blur-3xl pointer-events-none z-0"></div>
+
+            <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-24 max-w-6xl mx-auto w-full z-10">
+              <div className="relative w-64 h-64 md:w-80 md:h-80 flex-shrink-0">
                 <svg
                   viewBox="0 0 100 100"
-                  className="w-full h-full rotate-[-90deg]"
+                  className="w-full h-full rotate-[-90deg] drop-shadow-[0_0_15px_rgba(155,34,38,0.3)]"
                 >
                   <circle
                     cx="50"
                     cy="50"
                     r="45"
                     fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeOpacity="0.2"
+                    stroke="#1f2937"
+                    strokeWidth="4"
                   />
                   <circle
                     ref={s4CircleFill}
@@ -801,149 +990,213 @@ export default function Home() {
                     r="45"
                     fill="none"
                     stroke="#9B2226"
-                    strokeWidth="10"
+                    strokeWidth="6"
+                    strokeLinecap="round"
                     strokeDasharray="283"
                     strokeDashoffset="283"
-                    style={{ filter: "url(#jaggedS4)" }}
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span
                     ref={s4Text60}
-                    className="font-serif text-5xl md:text-7xl text-crimson font-bold"
+                    className="font-serif text-6xl md:text-8xl text-crimson font-bold drop-shadow-[0_0_10px_rgba(155,34,38,0.5)]"
                   >
                     0%
                   </span>
                 </div>
               </div>
-              <div className="flex-1">
-                <p className="font-sans text-2xl md:text-5xl leading-tight">
-                  Dari mahasiswa di sekitarmu bertarung dalam diam melawan
-                  stres, kecemasan, dan depresi.
+              <div className="flex-1 max-w-xl">
+                <p className="font-sans text-2xl md:text-4xl leading-snug text-gray-200">
+                  Dari mahasiswa di sekitarmu{" "}
+                  <span className="text-[#9B2226] italic font-serif">
+                    bertarung dalam diam
+                  </span>{" "}
+                  melawan stres, kecemasan, dan depresi.
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="w-[100vw] h-full flex items-center justify-center flex-shrink-0 px-8 relative">
-            <div className="max-w-4xl text-center">
-              <h2 className="font-serif text-5xl md:text-8xl mb-6 text-sage">
-                Targeting SDG 3<br />
-                <span className="text-[0.5em] text-canvas opacity-80">
+          <div className="w-[100vw] h-full flex items-center justify-center flex-shrink-0 px-8 relative overflow-hidden">
+            {/* Depth/Background Number */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[200px] md:text-[350px] text-white/[0.03] font-serif select-none z-0 pointer-events-none leading-none tracking-tighter">
+              03
+            </div>
+
+            <div className="max-w-4xl text-center z-10 w-full">
+              <div ref={s4Panel2Title} className="flex flex-col items-center">
+                <h2 className="font-serif text-5xl md:text-7xl lg:text-8xl mb-2 bg-clip-text text-transparent bg-gradient-to-r from-[#84A59D] to-white drop-shadow-lg tracking-tight">
+                  Targeting SDG 3
+                </h2>
+                <span className="font-serif text-2xl md:text-4xl text-gray-300 italic font-light tracking-wide">
                   Good Health & Well-being
                 </span>
-              </h2>
-              <p className="font-sans text-xl md:text-3xl text-canvas/70 leading-relaxed border-t border-sage/30 pt-8 mt-4 inline-block">
-                Grahita bukan sekadar game. Ini adalah simulasi P3K Psikologis
-                (Psychological First Aid) berbalut puzzle RPG.
-              </p>
+              </div>
+
+              <div
+                ref={s4Panel2Line}
+                className="h-[1px] w-full max-w-md mx-auto bg-gradient-to-r from-transparent via-[#84A59D]/70 to-transparent my-10"
+                style={{ transformOrigin: "center" }}
+              ></div>
+
+              <div ref={s4Panel2Text}>
+                <p className="font-sans font-light text-lg md:text-2xl text-gray-400 leading-relaxed max-w-2xl mx-auto px-4">
+                  Grahita bukan sekadar game. Ini adalah simulasi P3K Psikologis
+                  (Psychological First Aid) berbalut puzzle RPG.
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* SCENE 5 */}
-      <section className="relative min-h-screen py-32 w-full bg-white flex flex-col items-center justify-center text-center px-4 overflow-hidden text-abyss">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-32 bg-abyss opacity-20 z-10"></div>
-        <div className="relative z-10 mb-24 mt-16 w-64 h-64">
-          <svg viewBox="0 0 100 200" className="w-full h-full overflow-visible">
-            <g ref={s5CupGroup} style={{ transformOrigin: "50px 50px" }}>
+      <section
+        ref={s5Container}
+        className="relative min-h-screen py-32 w-full flex flex-col items-center justify-center text-center px-4 overflow-hidden text-abyss"
+      >
+        {/* Highly transparent Sage Green radial background */}
+        <div
+          className="absolute inset-0 pointer-events-none -z-10"
+          style={{
+            background:
+              "radial-gradient(circle at center, rgba(132, 165, 157, 0.05) 0%, transparent 70%)",
+          }}
+        ></div>
+
+        <div className="relative mb-16 w-32 h-40">
+          <svg viewBox="0 0 100 150" className="w-full h-full overflow-visible">
+            <defs>
+              <clipPath id="cupClip">
+                <path d="M10,20 C10,20 20,130 30,140 C40,145 60,145 70,140 C80,130 90,20 90,20 Z" />
+              </clipPath>
+            </defs>
+            <g
+              ref={s5CupGroup}
+              style={{ transformOrigin: "50px 140px" }}
+              className="relative z-10"
+            >
+              {/* Cup Stroke */}
               <path
                 ref={s5CupStroke}
-                d="M20,20 L20,80 Q20,100 50,100 Q80,100 80,80 L80,20"
+                d="M10,20 C10,20 20,130 30,140 C40,145 60,145 70,140 C80,130 90,20 90,20"
                 fill="none"
-                stroke="#121820"
-                strokeWidth="3"
+                strokeWidth="4"
                 strokeLinecap="round"
-                strokeDasharray="200"
-                strokeDashoffset="200"
+                strokeLinejoin="round"
+                style={{ transformOrigin: "bottom center" }}
               />
-              <line
-                x1="20"
-                y1="20"
-                x2="80"
-                y2="20"
-                stroke="#121820"
-                strokeWidth="3"
-                strokeDasharray="60"
-                strokeLinecap="round"
-              />
+              {/* Liquid Scale Y with Clip Path */}
+              <g clipPath="url(#cupClip)">
+                <rect
+                  ref={s5Liquid}
+                  x="0"
+                  y="0"
+                  width="100"
+                  height="150"
+                  fill="#84A59D"
+                  style={{ transformOrigin: "bottom center" }}
+                />
+              </g>
             </g>
-            <path
-              ref={s5Liquid}
-              d="M45,95 L55,95 L52,180 L48,180 Z"
-              fill="#84A59D"
-            />
           </svg>
         </div>
-        <h3 className="font-sans font-bold text-abyss/50 tracking-[0.2em] md:tracking-[0.4em] uppercase mb-12 max-w-lg mx-auto">
-          Grahita (Kawi): Insting batin untuk memahami penderitaan tanpa perlu
-          diucapkan.
-        </h3>
-        <p className="font-serif italic text-sage text-4xl md:text-7xl max-w-5xl mx-auto mb-16 px-4 leading-tight">
-          "You cannot pour from an empty cup."
-        </p>
-        <p className="font-sans text-xl md:text-2xl text-abyss/80 max-w-2xl mx-auto font-medium">
-          Menolong orang lain tanpa batasan hanya akan menghancurkan dirimu
-          sendiri.
-        </p>
+
+        <div ref={s5Text1}>
+          <h3 className="font-sans font-bold text-abyss/50 tracking-[0.2em] md:tracking-[0.4em] uppercase mb-12 max-w-lg mx-auto">
+            Grahita (Kawi): Insting batin untuk memahami penderitaan tanpa perlu
+            diucapkan.
+          </h3>
+        </div>
+
+        <div ref={s5Text2}>
+          <p className="font-serif italic text-sage text-4xl md:text-7xl max-w-5xl mx-auto mb-16 px-4 leading-tight">
+            &quot;You cannot pour from an empty cup.&quot;
+          </p>
+        </div>
+
+        <div ref={s5Text3}>
+          <p className="font-sans text-xl md:text-2xl text-abyss/80 max-w-2xl mx-auto font-medium">
+            Menolong orang lain tanpa batasan hanya akan menghancurkan dirimu
+            sendiri.
+          </p>
+        </div>
       </section>
 
       {/* SCENE 6 */}
-      <section className="relative h-screen w-full bg-abyss flex items-center justify-center overflow-hidden">
+      <section
+        ref={s6Section}
+        className="relative h-screen w-full bg-abyss flex items-center justify-center overflow-hidden"
+        onMouseMove={handleS6MouseMove}
+        onMouseEnter={() => setS6Hovered(true)}
+        onMouseLeave={() => setS6Hovered(false)}
+      >
+        {/* GLITCH ARROW TRACKER */}
+        {!isDecrypted && (
+          <div
+            ref={s6Arrow}
+            className={`absolute top-0 left-0 text-crimson font-mono font-bold text-5xl pointer-events-none transition-opacity duration-300 z-40 ${
+              s6Hovered ? "opacity-90" : "opacity-0"
+            }`}
+            style={{
+              transformOrigin: "center right",
+              textShadow: "0 0 15px rgba(220, 20, 60, 0.8)",
+            }}
+          >
+            <span className="inline-block animate-pointing">&rarr;</span>
+          </div>
+        )}
+
         <div className="text-center z-10">
-          <p className="font-serif text-3xl md:text-5xl text-canvas/40 mix-blend-screen leading-relaxed">
+          <p
+            ref={s6MainText}
+            className="font-serif text-3xl md:text-5xl text-canvas/40 mix-blend-screen leading-relaxed"
+          >
             Empati adalah beban yang sunyi. <br />
             <span className="text-canvas mx-2">Istirahatkan pikiranmu.</span>
           </p>
         </div>
 
         {/* THE HIDDEN ANOMALY */}
-        <div
-          className="absolute bottom-12 right-12 z-50 interactable"
-          onMouseEnter={handleGlyphHover}
-          onMouseLeave={handleGlyphLeave}
-        >
-          <div className="relative flex items-center justify-center cursor-pointer w-16 h-16">
-            <svg viewBox="0 0 50 50" className="w-10 h-10 overflow-visible">
-              <g
-                ref={s6Glyph}
-                stroke="#84A59D"
-                strokeWidth="2"
-                fill="none"
-                opacity="0.6"
+        <div className="absolute bottom-12 right-12 z-50 interactable">
+          <div className="relative flex flex-col items-end justify-end w-auto h-auto min-w-[50px] min-h-[50px]">
+            {!isDecrypted ? (
+              <div
+                ref={s6Trigger}
+                className="cursor-pointer text-crimson font-mono font-bold animate-pulse opacity-30 text-xl"
+                onClick={handleDecryptClick}
               >
-                <path d="M25,5 L25,20" />
-                <path d="M25,30 L25,45" />
-                <path d="M5,25 L20,25" />
-                <path d="M30,25 L45,25" />
-                <circle cx="25" cy="25" r="5" fill="#84A59D" stroke="none" />
-                <path d="M10,10 L20,20" />
-                <path d="M40,40 L30,30" />
-              </g>
-            </svg>
-
-            <div
-              ref={s6Links}
-              className="absolute bottom-full right-full text-right opacity-0 pointer-events-none mb-4 mr-4 whitespace-nowrap min-w-[200px]"
-            >
-              <a
-                href="#"
-                className="block font-mono text-xs md:text-sm text-crimson hover:text-sage transition-colors duration-300 mb-3 tracking-widest bg-abyss/80 p-2 border border-crimson/20"
+                [ ! ]
+              </div>
+            ) : (
+              <div
+                ref={s6Links}
+                className="text-right whitespace-nowrap min-w-[200px]"
               >
-                [ DECRYPT: THE_BLUEPRINT.exe ]
-              </a>
-              <a
-                href="#"
-                className="block font-mono text-xs md:text-sm text-crimson hover:text-sage transition-colors duration-300 tracking-widest bg-abyss/80 p-2 border border-crimson/20"
-              >
-                [ ACCESS: THE_PITCH.sys ]
-              </a>
-            </div>
+                <button
+                  ref={s6Link1}
+                  onClick={(e) =>
+                    handleNavigation(e, "https://grahita-v2-bv6n.vercel.app/")
+                  }
+                  className="block w-full text-right font-mono text-xs md:text-sm text-crimson hover:text-white hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-all duration-300 mb-3 tracking-widest bg-abyss/80 p-2 border border-crimson/20"
+                >
+                  {""}
+                </button>
+                <button
+                  ref={s6Link2}
+                  onClick={(e) =>
+                    handleNavigation(e, "https://granita-v3.vercel.app/")
+                  }
+                  className="block w-full text-right font-mono text-xs md:text-sm text-crimson hover:text-white hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-all duration-300 tracking-widest bg-abyss/80 p-2 border border-crimson/20"
+                >
+                  {""}
+                </button>
+              </div>
+            )}
 
             <div
               ref={s6Pulse}
-              className="absolute inset-0 -z-10 bg-gradient-to-r from-crimson/20 to-sage/20 rounded-full blur-3xl scale-50 opacity-0 pointer-events-none"
+              className="absolute inset-0 -z-10 bg-gradient-to-r from-crimson/20 to-sage/20 rounded-full blur-3xl scale-50 pointer-events-none"
             ></div>
           </div>
         </div>
